@@ -21,11 +21,11 @@ I have forked off Forge in order to package it for use as an emscripten library.
 
 # Forge
 
-A native implementation of [TLS][] (and various other cryptographic tools) in
-[JavaScript][].
+A native implementation of TLS (and various other cryptographic tools) in
+JavaScript.
 
 ## Introduction
 
-The Forge software is a fully native implementation of the [TLS][] protocol in
+The Forge software is a fully native implementation of the TLS protocol in
 JavaScript as well as a set of tools for developing Web Apps that utilize many
 network resources.
