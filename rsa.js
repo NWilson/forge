@@ -8,63 +8,68 @@
 
 mergeInto(LibraryManager.library, {
   rvutil_RSA__deps: ['rvutil_BigInteger', '__setErrNo', '$ERRNO_CODES'],
-  rvutil_RSA: (function(){
+  rvutil_RSA: {
+    cache: null,
+    get: function() {
+      if (this.cache)
+        return this.cache;
+      this.cache = (function(){
 
-    var BigInteger = _rvutil_BigInteger;
+        var BigInteger = _rvutil_BigInteger.get();
 
-    var rsa = {
-      _keys: [],
-      callOn: function(descriptor, action, args) {
-        if (!(descriptor in this._keys)) {
-          ___setErrNo(ERRNO_CODES.EBADF);
-          return -1;
-        }
-        var item = this._keys[descriptor];
-        if (typeof item[action] !== 'function') {
-          ___setErrNo(ERRNO_CODES.EINVAL);
-          return -1;
-        }
-        return item[action].apply(item, args);
-      },
-      secureRng: {
-        // x is an array to fill with bytes
-        nextBytes: function(x) {
-          if(typeof(crypto) === 'undefined' ||
-              typeof(crypto.getRandomValues) === 'undefined')
-            throw new Error('window.crypto.getRandomValues required');
-  
-          if (!buffer || buffer.length < x.length)
-            buffer = new Uint8Array(x.length);
-          crypto.getRandomValues(buffer.subarray(0,x.length));
-          for(var i = 0; i < x.length; ++i)
-            x[i] = buffer[i];
-        },
-        buffer: null
-      },
-      bytesToHex: function(buffer) {
-        var rval = '';
-        for(var i = 0; i < buffer.length; ++i) {
-          var b = buffer[i];
-          if(b < 16) rval += '0';
-          rval += b.toString(16);
-        }
-        return rval;
-      },
-      hexToBytes: function(hex) {
-        var rval = new Array(Math.ceil(hex.length / 2));
-        var i = 0, j = 0;
-        if(hex.length & 1 == 1) {
-          rval[i] = parseInt(hex[j], 16);
-          i = j = 1;
-        }
-        for(; j < hex.length; ++i, j += 2)
-          rval[i] = parseInt(hex.substr(j, 2), 16);
-        return rval;
-      },
+        var rsa = {
+          _keys: [],
+          callOn: function(descriptor, action, args) {
+            if (!(descriptor in this._keys)) {
+              ___setErrNo(ERRNO_CODES.EBADF);
+              return -1;
+            }
+            var item = this._keys[descriptor];
+            if (typeof item[action] !== 'function') {
+              ___setErrNo(ERRNO_CODES.EINVAL);
+              return -1;
+            }
+            return item[action].apply(item, args);
+          },
+          secureRng: {
+            // x is an array to fill with bytes
+            nextBytes: function(x) {
+              if (typeof(crypto) === 'undefined' ||
+                  typeof(crypto.getRandomValues) === 'undefined')
+                throw new Error('window.crypto.getRandomValues required');
 
-      encrypt: null, decrypt: null, setPublicKey: null, setPrivateKey: null,
-      generatePrivateKey: null
-    };
+              if (!this.buffer || this.buffer.length < x.length)
+                this.buffer = new Uint8Array(x.length);
+              crypto.getRandomValues(this.buffer.subarray(0,x.length));
+              for (var i = 0; i < x.length; ++i)
+                x[i] = this.buffer[i];
+            },
+            buffer: null
+          },
+          bytesToHex: function(buffer) {
+            var rval = '';
+            for (var i = 0; i < buffer.length; ++i) {
+              var b = buffer[i];
+              if (b < 16) rval += '0';
+              rval += b.toString(16);
+            }
+            return rval;
+          },
+          hexToBytes: function(hex) {
+            var rval = new Array(Math.ceil(hex.length / 2));
+            var i = 0, j = 0;
+            if (hex.length & 1 == 1) {
+              rval[i] = parseInt(hex[j], 16);
+              i = j = 1;
+            }
+            for (; j < hex.length; ++i, j += 2)
+              rval[i] = parseInt(hex.substr(j, 2), 16);
+            return rval;
+          },
+
+          encrypt: null, decrypt: null, setPublicKey: null, setPrivateKey: null,
+          generatePrivateKey: null
+        };
 
 
 /* ########## Begin code from forge ########## */
@@ -103,7 +108,7 @@ var _modPow = function(x, key, pub) {
   // cryptographic blinding
   var r;
   do {
-    var random = new Array((key.n.bitLength()+7) / 8);
+    var random = new Array(Math.ceil(key.n.bitLength()/8));
     rsa.secureRng.nextBytes(random);
     r = new BigInteger(rsa.bytesToHex(random), 16).mod(key.n);
   } while(r.equals(BigInteger.ZERO));
@@ -158,7 +163,7 @@ rsa.encrypt = function(m, key, pub) {
   var zeros = k - Math.ceil(yhex.length / 2);
   var zbuf = new Array(zeros);
   for(var i = 0; i < zbuf.length; ++i) zbuf[i] = 0;
-  return zeros.concat(rsa.hexToBytes(yhex));
+  return zbuf.concat(rsa.hexToBytes(yhex));
 };
 
 /**
@@ -201,7 +206,6 @@ rsa.decrypt = function(ed, key, pub) {
   var zeros = k - Math.ceil(xhex.length / 2);
   var zbuf = new Array(zeros);
   for(var i = 0; i < zbuf.length; ++i) zbuf[i] = 0;
-
   return zbuf.concat(rsa.hexToBytes(xhex));
 };
 
@@ -268,21 +272,21 @@ rsa.generatePrivateKey = function(bits, exponent) {
   var rng = rsa.secureRng;
 
   var qs = bits>>1;
-  var n, d, p, q, e = new BigInteger(exponent,16);
+  var n, d, p, q, e = new BigInteger(exponent.toString(16), 16);
   for(;;) {
     for(;;) {
-      p = new BigInteger(bits-qs,1,rng);
+      p = new BigInteger(bits-qs, 1, rng);
       if(p.subtract(BigInteger.ONE).gcd(e).compareTo(BigInteger.ONE) == 0 &&
          p.isProbablePrime(30))
         break;
     }
     for(;;) {
-      q = new BigInteger(qs,1,rng);
-      if(q.subtract(BigInteger.ONE).gcd(e).compareTo(BigInteger.ONE) == 0 &&
-         q.isProbablePrime(30))
+      q = new BigInteger(qs, 1, rng);
+      if (q.subtract(BigInteger.ONE).gcd(e).compareTo(BigInteger.ONE) == 0 &&
+          q.isProbablePrime(30))
         break;
     }
-    if(p.compareTo(q) <= 0) {
+    if (p.compareTo(q) <= 0) {
       var t = p;
       p = q;
       q = t;
@@ -290,35 +294,38 @@ rsa.generatePrivateKey = function(bits, exponent) {
     var p1 = p.subtract(BigInteger.ONE);
     var q1 = q.subtract(BigInteger.ONE);
     var phi = p1.multiply(q1);
-    if(phi.gcd(e).compareTo(BigInteger.ONE) == 0) {
-      n = this.p.multiply(this.q);
+    if (phi.gcd(e).compareTo(BigInteger.ONE) == 0) {
+      n = p.multiply(q);
       d = e.modInverse(phi);
-      return rsa.setPrivateKey(n, e, d, p, q, null, null, null);
+      return rsa.setPrivateKey(n, e, d, p, q, d.mod(p1), d.mod(q1),
+                               q.modInverse(p));
     }
   }
 };
 
-return rsa;
-
-    })();
+        return rsa;
+      })();
+      return this.cache;
+    }
   },
 
   rvutil_rsa_new__deps: ['rvutil_RSA'],
   rvutil_rsa_new: function() {
     // int rvutil_rsa_new()
-    var BigInteger = _rvutil_BigInteger;
+    var BigInteger = _rvutil_BigInteger.get();
+    var rsa = _rvutil_RSA.get();
     for (var i = 0; ; ++i) {
-      if (!(i in _rvutil_RSA._keys)) break;
+      if (!(i in rsa._keys)) break;
     }
-    _rvutil_RSA._keys[i] = {
-      privKey: null,
+    rsa._keys[i] = {
+      privateKey: null,
       publicKey: null,
       rsaGenerate: function(size, exponent) {
-        this.privKey = null;
+        this.privateKey = null;
         this.publicKey = null;
         try {
-          this.privKey = _rvutil_RSA.generatePrivateKey();
-          this.publicKey = _rvutil_RSA.setPublicKey(this.privKey.n, this.privKey.e);
+          this.privateKey = rsa.generatePrivateKey();
+          this.publicKey = rsa.setPublicKey(this.privateKey.n, this.privateKey.e);
         } catch (e) {
           Module.printErr('Failed to generate RSA key: ' + e);
           ___setErrNo(ERRNO_CODES.ENOSYS);
@@ -327,23 +334,23 @@ return rsa;
         return 0;
       },
       rsaImportPublic: function(n, e) {
-        this.privKey = null;
-        this.publicKey = _rvutil_RSA.setPublicKey(new BigInteger(n, 16),
-                                                  new BigInteger(e, 16));
+        this.privateKey = null;
+        this.publicKey = rsa.setPublicKey(new BigInteger(n, 16),
+                                                    new BigInteger(e, 16));
         return 0;
       },
       rsaImportPrivate: function(n, e, d, p, q, dmp1, dmq1, iqmp) {
-        this.privKey = _rvutil_RSA.setPrivateKey(new BigInteger(n, 16),
-                                                 new BigInteger(e, 16),
-                                                 new BigInteger(d, 16),
-                                                 new BigInteger(p, 16),
-                                                 new BigInteger(q, 16),
-                                                 new BigInteger(dmp1, 16),
-                                                 new BigInteger(dmq1, 16),
-                                                 new BigInteger(iqmp, 16));
-        this.publicKey = _rvutil_RSA.setPublicKey(this.privKey.n, this.privKey.e);
+        this.privateKey = rsa.setPrivateKey(new BigInteger(n, 16),
+                                            new BigInteger(e, 16),
+                                            new BigInteger(d, 16),
+                                            new BigInteger(p, 16),
+                                            new BigInteger(q, 16),
+                                            new BigInteger(dmp1, 16),
+                                            new BigInteger(dmq1, 16),
+                                            new BigInteger(iqmp, 16));
+        this.publicKey = rsa.setPublicKey(this.privateKey.n, this.privateKey.e);
         return 0;
-      }
+      },
       rsaExport: function(value, buffer, buffer_len) {
         var num;
         if (this.privateKey && (value in this.privateKey))
@@ -354,7 +361,7 @@ return rsa;
           ___setErrNo(ERRNO_CODES.EINVAL);
           return -1;
         }
-        var valArray = _rvutil_RSA.hexToBytes(num.toString(16));
+        var valArray = rsa.hexToBytes(num.toString(16));
         if (valArray.length > buffer_len) {
           ___setErrNo(ERRNO_CODES.ENOMEM);
           return -1;
@@ -370,10 +377,17 @@ return rsa;
       },
       rsaCrypt: function(encrypt, data, buffer, buffer_len) {
         var result;
-        if (encrypt)
-          result = _rvutil_RSA.encrypt(data, this.publicKey, true);
-        else
-          result = _rvutil_RSA.decrypt(data, this.privateKey, false);
+        try {
+          if (encrypt)
+            result = rsa.encrypt(data, this.publicKey, true);
+          else
+            result = rsa.decrypt(data, this.privateKey, false);
+        } catch (e) {
+          Module.printErr('Failed to perform RSA ' + (encrypt ? 'en' : 'de') +
+                          'cryption: ' + e);
+          ___setErrNo(ERRNO_CODES.ENOSYS);
+          return -1;
+        }
         if (!result) {
           ___setErrNo(ERRNO_CODES.EINVAL);
           return -1;
@@ -384,6 +398,7 @@ return rsa;
         }
         for (var i = 0; i < result.length; ++i)
           {{{ makeSetValue('buffer', 'i', 'result[i]', 'i8') }}};
+        return result.length;
       }
     };
     return i;
@@ -392,25 +407,26 @@ return rsa;
   rvutil_rsa_free__deps: ['rvutil_RSA'],
   rvutil_rsa_free: function(descriptor) {
     // int rvutil_rsa_free(int descriptor)
-    if (!(descriptor in _rvutil_RSA._keys)) {
+    var rsa = _rvutil_RSA.get();
+    if (!(descriptor in rsa._keys)) {
       ___setErrNo(ERRNO_CODES.EBADF);
       return -1;
     }
-    delete _rvutil_RSA._keys[descriptor];
+    delete rsa._keys[descriptor];
     return 0;
   },
 
   rvutil_rsa_generate__deps: ['rvutil_RSA'],
   rvutil_rsa_generate: function(descriptor, size, exponent) {
     // int rvutil_rsa_generate(int d, int size, int exponent)
-    return _rvutil_RSA.callOn(descriptor, 'rsaGenerate', [size, exponent]);
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaGenerate', [size, exponent]);
   },
 
   rvutil_rsa_import_public__deps: ['rvutil_RSA'],
   rvutil_rsa_import_public: function(descriptor, n, e) {
     // int rvutil_rsa_import_public(int d, const char* n, const char* e)
-    return _rvutil_RSA.callOn(descriptor, 'rsaImportPublic',
-                              [Pointer_stringify(n), Pointer_stringify(e)]);
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaImportPublic',
+                                    [Pointer_stringify(n), Pointer_stringify(e)]);
   },
 
   rvutil_rsa_import_private__deps: ['rvutil_RSA'],
@@ -419,37 +435,38 @@ return rsa;
     //                               const char* d, const char* p, const char* q,
     //                               const char* dmp1, const char* dmq1,
     //                               const char* iqmp)
-    return _rvutil_RSA.callOn(descriptor, 'rsaImportPrivate',
-                              [Pointer_stringify(n), Pointer_stringify(e),
-                               Pointer_stringify(d), Pointer_stringify(p),
-                               Pointer_stringify(q), Pointer_stringify(dmp1),
-                               Pointer_stringify(dmq1), Pointer_stringify(iqmp)]);
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaImportPrivate',
+                                    [Pointer_stringify(n), Pointer_stringify(e),
+                                     Pointer_stringify(d), Pointer_stringify(p),
+                                     Pointer_stringify(q), Pointer_stringify(dmp1),
+                                     Pointer_stringify(dmq1), Pointer_stringify(iqmp)]);
   },
 
   rvutil_rsa_export__deps: ['rvutil_RSA'],
   rvutil_rsa_export: function(descriptor, value, buffer, buffer_len) {
     // int rvutil_rsa_export(int d, const char* value, unsigned char* buffer,
     //                       size_t buffer_len)
-    return _rvutil_RSA.callOn(descriptor, 'rsaExport',
-                              [Pointer_stringify(value), buffer, buffer_len]);
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaExport',
+                                    [Pointer_stringify(value),
+                                     buffer, buffer_len]);
   },
 
   rvutil_rsa_get_size__deps: ['rvutil_RSA'],
   rvutil_rsa_get_size: function(descriptor) {
     // int rvutil_rsa_get_size(int d)
-    return _rvutil_RSA.callOn(descriptor, 'rsaGetSize', []);
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaGetSize', []);
   },
 
   rvutil_rsa_crypt_raw__deps: ['rvutil_RSA'],
-  rvutil_rsa_crypt_raw: function(descriptor, encrypt, hashAlgorithm, data,
-                                 data_len, buffer, buffer_len) {
+  rvutil_rsa_crypt_raw: function(descriptor, encrypt, data, data_len,
+                                 buffer, buffer_len) {
     // int rvutil_rsa_crypt_raw(int d, int encrypt,
     //                          const unsigned char* data, size_t data_len,
     //                          unsigned char* buffer, size_t buffer_len)
     var dataArray = new Array(data_len);
-    for (var i = 0; i < data.length; ++i)
-      dataArray[i] = {{{ makeGetValue('data', 'i', 'i8') }}};
-    return _rvutil_RSA.callOn(descriptor, 'rsaCrypt',
-                              [encrypt, dataArray, buffer, buffer_len]);
+    for (var i = 0; i < data_len; ++i)
+      dataArray[i] = {{{ makeGetValue('data', 'i', 'i8', 0, 1) }}};
+    return _rvutil_RSA.get().callOn(descriptor, 'rsaCrypt',
+                                    [encrypt, dataArray, buffer, buffer_len]);
   }
 });

@@ -48,7 +48,12 @@ Address all questions regarding this license to:
 */
 
 mergeInto(LibraryManager.library, {
-  rvutil_BigInteger: (function(){
+  rvutil_BigInteger: {
+    cache: null,
+    get: function() {
+      if (this.cache)
+        return this.cache;
+      this.cache = (function(){
 
 /* ########## Begin module implementation ########## */
 
@@ -1266,7 +1271,10 @@ BigInteger.prototype.isProbablePrime = bnIsProbablePrime;
 
 /* ########## End module implementation ########## */
 
-    return BigInteger; })()
+        return BigInteger;
+      })();
+      return this.cache;
+    }
   }
 
 });
