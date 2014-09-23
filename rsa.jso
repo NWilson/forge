@@ -324,7 +324,7 @@ rsa.generatePrivateKey = function(bits, exponent) {
         this.privateKey = null;
         this.publicKey = null;
         try {
-          this.privateKey = rsa.generatePrivateKey();
+          this.privateKey = rsa.generatePrivateKey(size, exponent);
           this.publicKey = rsa.setPublicKey(this.privateKey.n, this.privateKey.e);
         } catch (e) {
           Module.printErr('Failed to generate RSA key: ' + e);
@@ -336,7 +336,7 @@ rsa.generatePrivateKey = function(bits, exponent) {
       rsaImportPublic: function(n, e) {
         this.privateKey = null;
         this.publicKey = rsa.setPublicKey(new BigInteger(n, 16),
-                                                    new BigInteger(e, 16));
+                                          new BigInteger(e, 16));
         return 0;
       },
       rsaImportPrivate: function(n, e, d, p, q, dmp1, dmq1, iqmp) {
